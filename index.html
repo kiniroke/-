@@ -20,9 +20,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
 
   <style>
     :root { --gold:#C9A84C; --gold-lt:#F5D78E; --gold-dk:#A67C2A; }
@@ -468,39 +465,37 @@
 
 
 <script>
-const FB_CONFIG = {
-  apiKey:            "AIzaSyDYD0JZi85M1U8jd27qL8W3bKIYCZlvgHE",
-  authDomain:        "dilnaz-bcf2e.firebaseapp.com",
-  databaseURL:       "https://dilnaz-bcf2e-default-rtdb.firebaseio.com",
-  projectId:         "dilnaz-bcf2e",
-  storageBucket:     "dilnaz-bcf2e.firebasestorage.app",
-  messagingSenderId: "368774597188",
-  appId:             "1:368774597188:web:ac4fd8775ef775d7da0a11"
-};
+/* ── Firebase REST API (без SDK) ─────────────────────── */
+const DB = 'https://dilnaz-bcf2e-default-rtdb.firebaseio.com';
 
-const USE_FIREBASE = FB_CONFIG.apiKey !== "ВСТАВЬ_СЮДА";
-let db = null;
-
-if (USE_FIREBASE) {
+async function fbGet() {
   try {
-    firebase.initializeApp(FB_CONFIG);
-    db = firebase.database();
-    db.ref('dilnaz/wishes').orderByChild('ts').limitToLast(30)
-      .on('value',
-        snap => {
-          const list = [];
-          snap.forEach(c => list.unshift({ id: c.key, ...c.val() }));
-          renderWishes(list);
-        },
-        err => console.error('Firebase read error:', err)
-      );
-  } catch(e) {
-    console.error('Firebase init error:', e);
-    loadLocal();
-  }
-} else {
-  loadLocal();
+    const r = await fetch(`${DB}/dilnaz/wishes.json`);
+    const data = await r.json();
+    if (!data) { renderWishes([]); return; }
+    const list = Object.entries(data)
+      .map(([id, v]) => ({ id, ...v }))
+      .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+      .slice(0, 30);
+    renderWishes(list);
+  } catch(e) { console.error('fbGet error:', e); }
 }
+
+async function fbPush(wish) {
+  try {
+    const r = await fetch(`${DB}/dilnaz/wishes.json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(wish)
+    });
+    if (!r.ok) console.error('fbPush failed:', r.status, await r.text());
+    else fbGet();
+  } catch(e) { console.error('fbPush error:', e); }
+}
+
+// Загрузить пожелания сразу и обновлять каждые 5 секунд
+fbGet();
+setInterval(fbGet, 5000);
 
 window.addEventListener('load', () => {
   setTimeout(() => {
@@ -602,15 +597,7 @@ function submitWish() {
   }
   const wish = { name: name || 'Гость', text, ts: Date.now(), time: new Date().toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'}) };
 
-  if (USE_FIREBASE && db) {
-    db.ref('dilnaz/wishes').push(wish)
-      .catch(err => console.error('Ошибка записи:', err));
-  } else {
-    const all = getLocalWishes();
-    all.unshift(wish);
-    localStorage.setItem('dilnaz_wishes', JSON.stringify(all.slice(0,50)));
-    renderWishes(all);
-  }
+  fbPush(wish);
   document.getElementById('wishName').value = '';
   document.getElementById('wishText').value = '';
   confetti({ particleCount:45, spread:65, origin:{y:.65}, colors:PAL, gravity:1.2 });
