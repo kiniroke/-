@@ -482,26 +482,23 @@ const USE_FIREBASE = FB_CONFIG.apiKey !== "ВСТАВЬ_СЮДА";
 let db = null;
 
 if (USE_FIREBASE) {
-  firebase.initializeApp(FB_CONFIG);
-  if (typeof firebase.analytics === 'function') {
-    firebase.analytics();
+  try {
+    firebase.initializeApp(FB_CONFIG);
+    db = firebase.database();
+    db.ref('dilnaz/wishes').orderByChild('ts').limitToLast(30)
+      .on('value',
+        snap => {
+          const list = [];
+          snap.forEach(c => list.unshift({ id: c.key, ...c.val() }));
+          renderWishes(list);
+        },
+        err => console.error('Firebase read error:', err)
+      );
+  } catch(e) {
+    console.error('Firebase init error:', e);
+    loadLocal();
   }
-  db = firebase.database();
-  // Слушаем пожелания в реальном времени
-  db.ref('dilnaz/wishes').orderByChild('ts').limitToLast(30).on('value', snap => {
-    const list = [];
-    snap.forEach(c => list.unshift({ id: c.key, ...c.val() }));
-    renderWishes(list);
-  });
-  // Слушаем RSVP в реальном времени
-  db.ref('dilnaz/rsvp').on('value', snap => {
-    const guests = [];
-    snap.forEach(c => guests.push(c.val().name));
-    renderGuests(guests);
-  });
 } else {
-  const offlineNote = document.getElementById('wishOfflineNote');
-  if (offlineNote) offlineNote.classList.remove('hidden');
   loadLocal();
 }
 
@@ -605,8 +602,9 @@ function submitWish() {
   }
   const wish = { name: name || 'Гость', text, ts: Date.now(), time: new Date().toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'}) };
 
-  if (USE_FIREBASE) {
-    db.ref('dilnaz/wishes').push(wish);
+  if (USE_FIREBASE && db) {
+    db.ref('dilnaz/wishes').push(wish)
+      .catch(err => console.error('Ошибка записи:', err));
   } else {
     const all = getLocalWishes();
     all.unshift(wish);
