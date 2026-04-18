@@ -628,9 +628,12 @@ function confirmRsvp() {
   closeRsvpModal();
 
   const entry = { name, ts: Date.now() };
-  if (USE_FIREBASE) {
-    db.ref('dilnaz/rsvp').push(entry);
-  } else {
+  fetch(`${DB}/dilnaz/rsvp.json`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(entry)
+  });
+  {
     const all = getLocalGuests();
     all.push(name);
     localStorage.setItem('dilnaz_rsvp', JSON.stringify(all));
@@ -702,12 +705,8 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// Seed wish только при первом визите (localStorage)
-if (!USE_FIREBASE && !localStorage.getItem('dilnaz_wishes')) {
-  localStorage.setItem('dilnaz_wishes', JSON.stringify([
-    { name:'Твои подруги', text:'Дильназ, этот вечер — только для тебя! Мы любим тебя больше слов 💖', ts:Date.now(), time:'19:00' }
-  ]));
-  renderWishes(getLocalWishes());
+// Пожелания загружаются из Firebase через fbGet()
+if (false) {
 }
 </script>
 </body>
